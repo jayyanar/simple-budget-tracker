@@ -1,0 +1,333 @@
+{
+	"info": {
+		"_postman_id": "a8b7c6d5-e4f3-g2h1-i0j9-k8l7m6n5o4p3",
+		"name": "Budget Tracker API",
+		"description": "Collection for testing the Budget Tracker API endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Add Expense",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"amount\": \"45.99\",\n    \"category\": \"Groceries\",\n    \"date\": \"2025-04-02\",\n    \"description\": \"Weekly grocery shopping\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/expense",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"expense"
+					]
+				},
+				"description": "Add a new expense to the budget tracker"
+			},
+			"response": []
+		},
+		{
+			"name": "Add Expense - Invalid Amount",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"amount\": \"abc\",\n    \"category\": \"Groceries\",\n    \"date\": \"2025-04-02\",\n    \"description\": \"Weekly grocery shopping\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/expense",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"expense"
+					]
+				},
+				"description": "Test validation for invalid amount"
+			},
+			"response": []
+		},
+		{
+			"name": "Add Expense - Missing Category",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"amount\": \"45.99\",\n    \"date\": \"2025-04-02\",\n    \"description\": \"Weekly grocery shopping\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/expense",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"expense"
+					]
+				},
+				"description": "Test validation for missing category"
+			},
+			"response": []
+		},
+		{
+			"name": "Get All Expenses",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/expense",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"expense"
+					]
+				},
+				"description": "Get all expenses"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Expenses By Date Range",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/expense?start_date=2025-04-01&end_date=2025-04-30",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"expense"
+					],
+					"query": [
+						{
+							"key": "start_date",
+							"value": "2025-04-01"
+						},
+						{
+							"key": "end_date",
+							"value": "2025-04-30"
+						}
+					]
+				},
+				"description": "Get expenses filtered by date range"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Expenses By Category",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/expense?category=Groceries",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"expense"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "Groceries"
+						}
+					]
+				},
+				"description": "Get expenses filtered by category"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Expense",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"amount\": \"35.75\",\n    \"category\": \"Entertainment\",\n    \"description\": \"Movie tickets\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/expense/{{expenseId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"expense",
+						"{{expenseId}}"
+					]
+				},
+				"description": "Update an existing expense"
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Expense",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/expense/{{expenseId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"expense",
+						"{{expenseId}}"
+					]
+				},
+				"description": "Delete an expense by ID"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Balance",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/balance",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"balance"
+					]
+				},
+				"description": "Get the total balance of all expenses"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Balance By Date Range",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/balance?start_date=2025-04-01&end_date=2025-04-30",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"balance"
+					],
+					"query": [
+						{
+							"key": "start_date",
+							"value": "2025-04-01"
+						},
+						{
+							"key": "end_date",
+							"value": "2025-04-30"
+						}
+					]
+				},
+				"description": "Get the total balance filtered by date range"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Summary",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/summary",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"summary"
+					]
+				},
+				"description": "Get a summary of expenses by category"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Summary By Date Range",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/summary?start_date=2025-04-01&end_date=2025-04-30",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"summary"
+					],
+					"query": [
+						{
+							"key": "start_date",
+							"value": "2025-04-01"
+						},
+						{
+							"key": "end_date",
+							"value": "2025-04-30"
+						}
+					]
+				},
+				"description": "Get a summary of expenses by category filtered by date range"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000",
+			"type": "string"
+		},
+		{
+			"key": "expenseId",
+			"value": "",
+			"type": "string",
+			"description": "Store the ID of a created expense for update/delete operations"
+		}
+	]
+}

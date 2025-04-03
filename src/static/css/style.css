@@ -1,0 +1,40 @@
+/* static/css/style.css */
+body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1.5rem;
+}
+
+.card-header {
+    font-weight: 600;
+}
+
+.footer {
+    border-top: 1px solid #dee2e6;
+}
+
+.table th {
+    border-top: none;
+}
+
+#total-balance {
+    color: #0d6efd;
+    font-weight: bold;
+}
+
+.btn-action {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.expense-row:hover {
+    background-color: #f1f8ff !important;
+}
