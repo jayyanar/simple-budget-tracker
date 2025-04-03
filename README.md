@@ -27,7 +27,7 @@ A comprehensive expense tracking application with a Flask REST API backend and a
 - **RESTful API**: Well-structured API for programmatic access
 - **Docker Support**: Containerized deployment for consistency across environments
 
-![Response UI](img/response_ui.png)
+![Response UI](img/Screenshot_of_flask.png)
 
 ## Project Structure
 
