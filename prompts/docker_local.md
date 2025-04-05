@@ -11,7 +11,7 @@ The Dockerfile for the Budget Tracker application was designed with the followin
 ### 1. Base Image Selection
 
 ```dockerfile
-FROM python:3.11-slim
+FROM --platform=linux/amd64 python:3.11-slim
 ```
 
 - **Python 3.11**: Chosen for its performance improvements and modern features
@@ -19,6 +19,10 @@ FROM python:3.11-slim
   - Smaller than the full Python image (reduces container size)
   - Includes essential build tools that might be needed for some Python packages
   - Avoids the bloat of the full Debian-based Python image
+- **Platform Specification**: Explicitly sets the target platform to linux/amd64
+  - Ensures compatibility with AWS Fargate which runs on x86_64/amd64 architecture
+  - Prevents "exec format error" issues when deploying to cloud environments
+  - Important when building on machines with different architectures (e.g., Apple M1/M2)
 
 ### 2. Working Directory and Environment Variables
 
@@ -98,12 +102,12 @@ EXPOSE 5000
 ### 8. Application Startup
 
 ```dockerfile
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "src.app:app"]
+CMD ["python", "src/app.py"]
 ```
 
-- **Gunicorn**: Uses Gunicorn as a production-ready WSGI server instead of Flask's development server
-- **Binding**: Binds to all interfaces (`0.0.0.0`) to allow external connections
-- **Application Path**: Points to the Flask application instance in the src/app.py file
+- **Direct Python Execution**: Uses Python directly to run the application
+- **Avoiding Gunicorn Issues**: Changed from Gunicorn to direct Python execution to fix the "exec format error"
+- **Host Binding**: Modified app.py to bind to all interfaces (0.0.0.0) for container accessibility
 
 ### 9. Compatibility with Local Development
 
@@ -111,10 +115,53 @@ The approach taken ensures that:
 
 1. **Local Development**: Running `python src/app.py` works as expected
 2. **Docker Deployment**: The application runs correctly in the Docker container
-3. **No Code Changes**: The application code remains unchanged
+3. **No Code Changes**: The application code remains unchanged except for the host binding
 4. **Simple Solution**: The fix is straightforward and easy to understand
 
 This approach is particularly useful when you want to maintain the same import structure both locally and in Docker without creating Python packages or modifying import statements.
+
+## Troubleshooting
+
+### Gunicorn Exec Format Error
+
+The original Dockerfile used Gunicorn as the WSGI server:
+
+```dockerfile
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "src.app:app"]
+```
+
+This resulted in an "exec format error" which can occur due to:
+- Architecture mismatch between the build and run environments
+- Issues with the Gunicorn installation
+- Path or module resolution problems
+
+The solution was to switch to direct Python execution and ensure the Flask app binds to all interfaces:
+
+```dockerfile
+# In Dockerfile
+CMD ["python", "src/app.py"]
+
+# In app.py
+if __name__ == '__main__':
+    app.run(debug=False, host='0.0.0.0', port=5000)
+```
+
+### AWS Fargate Exec Format Error
+
+When deploying to AWS Fargate, you might encounter an "exec /usr/local/bin/python: exec format error". This happens because:
+
+1. AWS Fargate runs on x86_64/amd64 architecture
+2. If you build Docker images on a different architecture (e.g., Apple M1/M2 with ARM64), the binaries won't be compatible
+
+The solution is to explicitly specify the target platform in your Dockerfile:
+
+```dockerfile
+FROM --platform=linux/amd64 python:3.11-slim
+```
+
+This ensures that Docker builds an image compatible with the target deployment platform, regardless of the architecture of the build machine.
+
+This approach is simpler and more reliable for development and testing purposes. For production deployments, you might want to revisit using a proper WSGI server after resolving the underlying issues.
 
 ## Usage Instructions
 
@@ -152,3 +199,4 @@ http://localhost:5000
 4. **Volume Mounting**: For persistent data storage
 5. **Environment Configuration**: More sophisticated environment variable handling for different deployment scenarios
 6. **Docker Compose**: Add a docker-compose.yml file for easier local development with potential additional services
+7. **Production WSGI Server**: Resolve the Gunicorn issues for a more production-ready deployment

@@ -1,5 +1,5 @@
-# Use Python 3.11 slim image as base
-FROM python:3.11-slim
+# Use Python 3.11 slim image as base with linux/amd64 architecture for AWS Fargate compatibility
+FROM --platform=linux/amd64 python:3.11-slim
 
 # Set working directory in the container
 WORKDIR /app
@@ -32,5 +32,5 @@ COPY src/budget_tracker.py .
 # Expose the port the app runs on
 EXPOSE 5000
 
-# Command to run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "src.app:app"]
+# Command to run the application using Python directly
+CMD ["python", "src/app.py"]

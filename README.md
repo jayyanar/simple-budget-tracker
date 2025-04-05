@@ -1,18 +1,22 @@
 # Simple Budget Tracker
 
-A comprehensive expense tracking application with a Flask REST API backend and a responsive HTML/CSS/JavaScript frontend.
+A comprehensive expense tracking application with a Flask REST API backend and a responsive HTML/CSS/JavaScript frontend, built entirely using Amazon Q through an iterative prompt-based approach.
+
+> **NEW**: Check out [MYPROMPT.md](MYPROMPT.md) for the complete set of prompts used to build this application with Amazon Q. Follow these prompts to recreate the entire development process yourself!
 
 ![Workflow Diagram](img/workflow_diagram.png)
 
 ## Table of Contents
 
 - [Features](#features)
+- [Development with Amazon Q](#development-with-amazon-q)
 - [Project Structure](#project-structure)
 - [Development Workflow](#development-workflow)
 - [Installation](#installation)
 - [Running Locally](#running-locally)
 - [API Documentation](#api-documentation)
 - [Docker Deployment](#docker-deployment)
+- [AWS Fargate Deployment](#aws-fargate-deployment)
 - [Testing](#testing)
 - [Future Enhancements](#future-enhancements)
 
@@ -26,8 +30,16 @@ A comprehensive expense tracking application with a Flask REST API backend and a
 - **Responsive UI**: User-friendly interface that works on desktop and mobile devices
 - **RESTful API**: Well-structured API for programmatic access
 - **Docker Support**: Containerized deployment for consistency across environments
+- **AWS Fargate Deployment**: Cloud deployment with auto-scaling capabilities
 
-![Response UI](img/Screenshot_of_flask.png)
+## Development with Amazon Q
+
+This project was built entirely using Amazon Q through an iterative prompt-based approach. No manual coding was required - all code was generated and refined through prompts to Amazon Q.
+
+Key resources:
+- [MYPROMPT.md](MYPROMPT.md): Complete set of prompts used to build and deploy the application
+- [Story.md](Story.md): An intuitive story explaining the iterative development process with Amazon Q
+- [prompts/](prompts/): Detailed documentation of each development step
 
 ## Project Structure
 
@@ -46,30 +58,39 @@ simple-budget-tracker/
 │       └── index.html         # Main application page
 ├── testing_api/
 │   └── postmancollection.json # Postman collection for API testing
+├── tests/
+│   └── test_budget_tracker.py # Unit tests for core functionality
 ├── prompts/
-│   ├── greencode_app_flask.md # Documentation for Flask API implementation
-│   ├── flask_ui_html.md       # Documentation for HTML UI implementation
-│   ├── postman.md             # Documentation for Postman collection
-│   └── docker_local.md        # Documentation for Docker implementation
+│   ├── BDD.md                 # Behavior-Driven Development specification
+│   ├── TDD.md                 # Test-Driven Development approach
+│   ├── greencode.md           # Core functionality implementation
+│   ├── greencode_app_flask.md # Flask API implementation
+│   ├── flask_ui_html.md       # HTML UI implementation
+│   ├── docker_local.md        # Docker implementation
+│   ├── sam_fargate.md         # AWS SAM/Fargate deployment
 ├── img/
 │   ├── workflow_diagram.png   # Application workflow diagram
-│   └── response_ui.png        # UI screenshot
+│   └── sculptor_and_robot.png # Illustration for the development story
 ├── Dockerfile                 # Docker configuration
-├── .dockerignore              # Files to exclude from Docker build
+├── template.yaml              # AWS SAM template for Fargate deployment
+├── MYPROMPT.md                # Complete set of prompts used with Amazon Q
 ├── requirements.txt           # Python dependencies
 └── README.md                  # This file
 ```
 
 ## Development Workflow
 
-Our development process followed these steps:
+Our development process followed these steps, all guided by Amazon Q:
 
-1. **Core Functionality**: Implemented the `BudgetTracker` class with expense management features
-2. **REST API Development**: Created a Flask API with endpoints for expense operations
-3. **API Testing**: Developed and tested API endpoints using Postman
-4. **Frontend Development**: Built a responsive HTML/CSS/JS interface
-5. **Containerization**: Dockerized the application for consistent deployment
-6. **Documentation**: Created comprehensive documentation for all components
+1. **Requirements Analysis**: Created BDD specifications for the application
+2. **Test-Driven Development**: Developed tests before implementation
+3. **Core Functionality**: Implemented the `BudgetTracker` class with expense management features
+4. **REST API Development**: Created a Flask API with endpoints for expense operations
+5. **API Testing**: Developed and tested API endpoints using Postman
+6. **Frontend Development**: Built a responsive HTML/CSS/JS interface
+7. **Containerization**: Dockerized the application for consistent deployment
+8. **Cloud Deployment**: Deployed to AWS Fargate with auto-scaling
+9. **Documentation**: Created comprehensive documentation for all components
 
 ### Development Steps and Documentation
 
@@ -83,7 +104,8 @@ The following table outlines each development step and links to the correspondin
 | REST API Development | Flask API implementation | [greencode_app_flask.md](prompts/greencode_app_flask.md) |
 | Frontend Development | HTML/CSS/JS interface | [flask_ui_html.md](prompts/flask_ui_html.md) |
 | Containerization | Docker implementation | [docker_local.md](prompts/docker_local.md) |
-| API Testing | Postman collection for testing | To be updated |
+| Cloud Deployment | AWS Fargate deployment with SAM | [sam_fargate.md](prompts/sam_fargate.md) |
+| Development Story | Narrative about iterative development | [Story.md](Story.md) |
 
 ## Installation
 
@@ -91,6 +113,7 @@ The following table outlines each development step and links to the correspondin
 
 - Python 3.8+
 - Docker (optional, for containerized deployment)
+- AWS CLI and SAM CLI (optional, for AWS deployment)
 
 ### Setup
 
@@ -184,10 +207,10 @@ The application is containerized using Docker for consistent deployment across e
 
 ### Dockerfile Features
 
-- Based on Python 3.11 slim image
+- Based on Python 3.11 slim image with platform specification for compatibility
 - Optimized for size and performance
-- Uses Gunicorn as the WSGI server for production
 - Properly handles Python module imports
+- Compatible with both local development and cloud deployment
 
 ### Building and Running
 
@@ -199,7 +222,48 @@ docker build -t budget-tracker .
 docker run -p 5000:5000 budget-tracker
 ```
 
+## AWS Fargate Deployment
+
+The application can be deployed to AWS Fargate using the provided SAM template.
+
+### Deployment Steps
+
+1. Deploy the SAM template:
+   ```bash
+   sam deploy --template-file template.yaml --stack-name budget-tracker --capabilities CAPABILITY_IAM
+   ```
+
+2. Build and push the Docker image to ECR:
+   ```bash
+   # Login to ECR
+   aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <account-id>.dkr.ecr.<region>.amazonaws.com
+   
+   # Build and tag the image
+   docker build -t budget-tracker:latest .
+   docker tag budget-tracker:latest <account-id>.dkr.ecr.<region>.amazonaws.com/budget-tracker:latest
+   
+   # Push the image to ECR
+   docker push <account-id>.dkr.ecr.<region>.amazonaws.com/budget-tracker:latest
+   ```
+
+3. Access the application using the LoadBalancer DNS name from the stack outputs
+
+### Auto-Scaling Configuration
+
+The Fargate deployment includes auto-scaling capabilities:
+- Minimum of 1 container to minimize costs
+- Maximum of 5 containers to handle high demand
+- Scales based on CPU utilization (70% threshold)
+
 ## Testing
+
+### Unit Testing
+
+Run the unit tests with pytest:
+
+```bash
+pytest tests/
+```
 
 ### API Testing with Postman
 
@@ -218,7 +282,7 @@ To use the collection:
 - **Recurring Expenses**: Support for recurring expense entries
 - **Data Export**: Export expense data to CSV/PDF
 - **Mobile App**: Develop native mobile applications
-- **Cloud Deployment**: Deploy to AWS using Fargate and other managed services
+- **CI/CD Pipeline**: Implement continuous integration and deployment
 
 ---
 

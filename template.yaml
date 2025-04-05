@@ -1,0 +1,325 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM Template for Budget Tracker Flask API on AWS Fargate
+
+Parameters:
+  VpcId:
+    Type: String
+    Description: VPC ID where the Fargate service will be deployed
+    Default: <update your VPC ID>
+
+  PublicSubnet1:
+    Type: String
+    Description: First public subnet ID for the Fargate service
+    Default: <update your public subnet ID>
+
+  PublicSubnet2:
+    Type: String
+    Description: Second public subnet ID for the Fargate service
+    Default: <update your public subnet ID>
+
+  ContainerPort:
+    Type: Number
+    Default: 5000
+    Description: Port on which the container will listen
+
+  ContainerCpu:
+    Type: Number
+    Default: 256
+    Description: CPU units for the container (1 vCPU = 1024 units)
+
+  ContainerMemory:
+    Type: Number
+    Default: 512
+    Description: Memory for the container in MB
+
+  ImageRepository:
+    Type: String
+    Default: budget-tracker
+    Description: Name of the ECR repository
+
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Tag of the Docker image
+
+  CreateECRRepository:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Whether to create a new ECR repository (set to false if it already exists)
+
+  MinContainerCount:
+    Type: Number
+    Default: 1
+    Description: Minimum number of containers to run
+
+  MaxContainerCount:
+    Type: Number
+    Default: 5
+    Description: Maximum number of containers to run
+
+  AutoScalingTargetCpuUtilization:
+    Type: Number
+    Default: 70
+    Description: Target CPU utilization percentage for auto scaling
+
+Conditions:
+  ShouldCreateECRRepository: !Equals [!Ref CreateECRRepository, "true"]
+
+Resources:
+  # ECR Repository for storing the Docker image - only created if CreateECRRepository is true
+  BudgetTrackerRepository:
+    Type: AWS::ECR::Repository
+    Condition: ShouldCreateECRRepository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Ref ImageRepository
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep only the last 5 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 5
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+  # Security Group for the Fargate service
+  BudgetTrackerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Budget Tracker Fargate service
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ContainerPort
+          ToPort: !Ref ContainerPort
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  # ECS Cluster
+  BudgetTrackerCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: BudgetTrackerCluster
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+
+  # Task Execution Role
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+
+  # Task Role
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonECS_FullAccess'
+
+  # Auto Scaling Role
+  AutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole'
+
+  # Log Group for the container
+  BudgetTrackerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/budget-tracker
+      RetentionInDays: 30
+
+  # Task Definition
+  BudgetTrackerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: budget-tracker
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: budget-tracker
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ImageRepository}:${ImageTag}
+          Essential: true
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              HostPort: !Ref ContainerPort
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BudgetTrackerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: FLASK_ENV
+              Value: production
+          Command: ["python", "src/app.py"]
+
+  # Load Balancer
+  BudgetTrackerLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: budget-tracker-lb
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !GetAtt BudgetTrackerSecurityGroup.GroupId
+      Scheme: internet-facing
+      Type: application
+      IpAddressType: ipv4
+
+  # Target Group
+  BudgetTrackerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: budget-tracker-tg
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !Ref VpcId
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+      HealthCheckProtocol: HTTP
+
+  # Listener
+  BudgetTrackerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BudgetTrackerTargetGroup
+      LoadBalancerArn: !Ref BudgetTrackerLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # ECS Service
+  BudgetTrackerService:
+    Type: AWS::ECS::Service
+    DependsOn: BudgetTrackerListener
+    Properties:
+      ServiceName: budget-tracker-service
+      Cluster: !Ref BudgetTrackerCluster
+      TaskDefinition: !Ref BudgetTrackerTaskDefinition
+      DesiredCount: !Ref MinContainerCount
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !GetAtt BudgetTrackerSecurityGroup.GroupId
+          Subnets:
+            - !Ref PublicSubnet1
+            - !Ref PublicSubnet2
+      LoadBalancers:
+        - ContainerName: budget-tracker
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref BudgetTrackerTargetGroup
+      SchedulingStrategy: REPLICA
+      DeploymentController:
+        Type: ECS
+
+  # Auto Scaling Target
+  ServiceScalingTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref MaxContainerCount
+      MinCapacity: !Ref MinContainerCount
+      ResourceId: !Sub service/${BudgetTrackerCluster}/${BudgetTrackerService.Name}
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !GetAtt AutoScalingRole.Arn
+
+  # Auto Scaling Policy - CPU Based
+  ServiceScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: BudgetTrackerServiceScalingPolicy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ServiceScalingTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref AutoScalingTargetCpuUtilization
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+Outputs:
+  BudgetTrackerRepositoryUri:
+    Description: URI of the ECR repository
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ImageRepository}
+
+  BudgetTrackerServiceUrl:
+    Description: URL of the Budget Tracker service
+    Value: !Sub http://${BudgetTrackerLoadBalancer.DNSName}
+
+  PushImageCommands:
+    Description: Commands to push the Docker image to ECR
+    Value: !Sub |
+      # Login to ECR
+      aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+      
+      # Build the Docker image
+      docker build -t ${ImageRepository}:${ImageTag} .
+      
+      # Tag the image
+      docker tag ${ImageRepository}:${ImageTag} ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ImageRepository}:${ImageTag}
+      
+      # Push the image to ECR
+      docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ImageRepository}:${ImageTag}
