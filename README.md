@@ -1,6 +1,6 @@
 # Simple Budget Tracker
 
-A comprehensive expense tracking application with a Flask REST API backend and a responsive HTML/CSS/JavaScript frontend, built entirely using Amazon Q through an iterative prompt-based approach.
+A comprehensive expense tracking application with a Flask REST API backend and a responsive HTML/CSS/JavaScript frontend, built entirely using Amazon Q CLI through an iterative prompt-based approach.
 
 > **NEW**: Check out [MYPROMPT.md](MYPROMPT.md) for the complete set of prompts used to build this application with Amazon Q. Follow these prompts to recreate the entire development process yourself!
 
@@ -32,7 +32,11 @@ A comprehensive expense tracking application with a Flask REST API backend and a
 - **Docker Support**: Containerized deployment for consistency across environments
 - **AWS Fargate Deployment**: Cloud deployment with auto-scaling capabilities
 
-## Development with Amazon Q
+## User Interface
+
+![UI](img/Screenshot_of_flask.png)
+
+## Development with Amazon Q CLI
 
 This project was built entirely using Amazon Q through an iterative prompt-based approach. No manual coding was required - all code was generated and refined through prompts to Amazon Q.
 
