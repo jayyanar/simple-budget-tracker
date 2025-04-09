@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: SAM Template for Budget Tracker Flask API on AWS Fargate
+Description: SAM Template for Budget Tracker Flask API on AWS Fargate with Cognito Authentication
 
 Parameters:
   VpcId:
@@ -63,11 +63,63 @@ Parameters:
     Type: Number
     Default: 70
     Description: Target CPU utilization percentage for auto scaling
+    
+  UserPoolName:
+    Type: String
+    Default: BudgetTrackerUserPool
+    Description: Name of the Cognito User Pool
+    
+  UserPoolClientName:
+    Type: String
+    Default: BudgetTrackerClient
+    Description: Name of the Cognito User Pool Client
 
 Conditions:
   ShouldCreateECRRepository: !Equals [!Ref CreateECRRepository, "true"]
 
 Resources:
+  # Cognito User Pool
+  BudgetTrackerUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref UserPoolName
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailMessage: 'Your verification code is {####}'
+        EmailSubject: 'Budget Tracker - Verification Code'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+
+  # Cognito User Pool Client
+  BudgetTrackerUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Ref UserPoolClientName
+      UserPoolId: !Ref BudgetTrackerUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      SupportedIdentityProviders:
+        - COGNITO
+
   # ECR Repository for storing the Docker image - only created if CreateECRRepository is true
   BudgetTrackerRepository:
     Type: AWS::ECR::Repository
@@ -152,6 +204,23 @@ Resources:
             Action: 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonECS_FullAccess'
+      Policies:
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cognito-idp:AdminInitiateAuth'
+                  - 'cognito-idp:AdminCreateUser'
+                  - 'cognito-idp:AdminSetUserPassword'
+                  - 'cognito-idp:AdminConfirmSignUp'
+                  - 'cognito-idp:SignUp'
+                  - 'cognito-idp:InitiateAuth'
+                  - 'cognito-idp:ConfirmSignUp'
+                  - 'cognito-idp:ForgotPassword'
+                  - 'cognito-idp:ConfirmForgotPassword'
+                Resource: !GetAtt BudgetTrackerUserPool.Arn
 
   # Auto Scaling Role
   AutoScalingRole:
@@ -202,6 +271,12 @@ Resources:
           Environment:
             - Name: FLASK_ENV
               Value: production
+            - Name: COGNITO_USER_POOL_ID
+              Value: !Ref BudgetTrackerUserPool
+            - Name: COGNITO_APP_CLIENT_ID
+              Value: !Ref BudgetTrackerUserPoolClient
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
           Command: ["python", "src/app.py"]
 
   # Load Balancer
@@ -308,6 +383,14 @@ Outputs:
   BudgetTrackerServiceUrl:
     Description: URL of the Budget Tracker service
     Value: !Sub http://${BudgetTrackerLoadBalancer.DNSName}
+    
+  CognitoUserPoolId:
+    Description: ID of the Cognito User Pool
+    Value: !Ref BudgetTrackerUserPool
+    
+  CognitoAppClientId:
+    Description: ID of the Cognito User Pool Client
+    Value: !Ref BudgetTrackerUserPoolClient
 
   PushImageCommands:
     Description: Commands to push the Docker image to ECR

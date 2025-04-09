@@ -8,16 +8,26 @@ from flask import Flask, request, jsonify, render_template
 from datetime import datetime
 from decimal import Decimal
 import json
+import os
 from typing import Dict, Any
+from functools import wraps
 
 # Use absolute import for local development compatibility
 from budget_tracker import BudgetTracker, Expense
+from auth_service import AuthService
 
 # Create Flask application
 app = Flask(__name__)
 
 # Create a single instance of BudgetTracker to be used across all requests
 budget_tracker = BudgetTracker()
+
+# Initialize authentication service
+auth_service = AuthService(
+    user_pool_id=os.environ.get('COGNITO_USER_POOL_ID'),
+    client_id=os.environ.get('COGNITO_APP_CLIENT_ID'),
+    region=os.environ.get('AWS_REGION', 'us-east-1')
+)
 
 # Custom JSON encoder to handle Decimal and datetime objects
 class CustomJSONEncoder(json.JSONEncoder):
@@ -53,12 +63,220 @@ def expense_to_dict(expense: Expense) -> Dict[str, Any]:
         "description": expense.description
     }
 
+# Authentication decorator
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        
+        # Get token from Authorization header
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+        
+        if not token:
+            return jsonify({'error': 'Authentication token is missing'}), 401
+        
+        # Verify token
+        is_valid, claims = auth_service.verify_token(token)
+        if not is_valid:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+        
+        # Add user info to request
+        request.user = auth_service.get_user_from_token(token)
+        
+        return f(*args, **kwargs)
+    
+    return decorated
+
 @app.route('/')
 def index():
     """Render the main HTML interface."""
     return render_template('index.html')
 
+@app.route('/signup', methods=['POST'])
+def signup():
+    """
+    Register a new user.
+    
+    Request body:
+    {
+        "email": "user@example.com",
+        "password": "SecurePassword123"
+    }
+    """
+    data = request.json
+    
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate required fields
+    required_fields = ["email", "password"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+    
+    # Register user
+    result = auth_service.register_user(
+        email=data["email"],
+        password=data["password"]
+    )
+    
+    if result['success']:
+        return jsonify({
+            "message": result['message'],
+            "user_id": result['user_id']
+        }), 201
+    else:
+        return jsonify({"error": result['error']}), 400
+
+@app.route('/verify', methods=['POST'])
+def verify():
+    """
+    Verify a user's email with verification code.
+    
+    Request body:
+    {
+        "email": "user@example.com",
+        "code": "123456"
+    }
+    """
+    data = request.json
+    
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate required fields
+    required_fields = ["email", "code"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+    
+    # Verify user
+    result = auth_service.verify_user(
+        email=data["email"],
+        verification_code=data["code"]
+    )
+    
+    if result['success']:
+        return jsonify({"message": result['message']})
+    else:
+        return jsonify({"error": result['error']}), 400
+
+@app.route('/login', methods=['POST'])
+def login():
+    """
+    Authenticate a user and get tokens.
+    
+    Request body:
+    {
+        "email": "user@example.com",
+        "password": "SecurePassword123"
+    }
+    """
+    data = request.json
+    
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate required fields
+    required_fields = ["email", "password"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+    
+    # Login user
+    result = auth_service.login(
+        email=data["email"],
+        password=data["password"]
+    )
+    
+    if result['success']:
+        return jsonify({
+            "message": result['message'],
+            "token": result['id_token'],
+            "refresh_token": result['refresh_token'],
+            "expires_in": result['expires_in']
+        })
+    else:
+        return jsonify({"error": result['error']}), 401
+
+@app.route('/logout', methods=['POST'])
+@token_required
+def logout():
+    """Log out a user by invalidating their tokens."""
+    auth_header = request.headers.get('Authorization')
+    access_token = auth_header.split(' ')[1] if auth_header else None
+    
+    if not access_token:
+        return jsonify({"error": "No access token provided"}), 400
+    
+    result = auth_service.logout(access_token)
+    
+    if result['success']:
+        return jsonify({"message": result['message']})
+    else:
+        return jsonify({"error": result['error']}), 400
+
+@app.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    """
+    Initiate the forgot password flow.
+    
+    Request body:
+    {
+        "email": "user@example.com"
+    }
+    """
+    data = request.json
+    
+    if not data or 'email' not in data:
+        return jsonify({"error": "Email is required"}), 400
+    
+    result = auth_service.forgot_password(data['email'])
+    
+    if result['success']:
+        return jsonify({"message": result['message']})
+    else:
+        return jsonify({"error": result['error']}), 400
+
+@app.route('/reset-password', methods=['POST'])
+def reset_password():
+    """
+    Complete the forgot password flow by setting a new password.
+    
+    Request body:
+    {
+        "email": "user@example.com",
+        "code": "123456",
+        "new_password": "NewSecurePassword123"
+    }
+    """
+    data = request.json
+    
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Validate required fields
+    required_fields = ["email", "code", "new_password"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+    
+    result = auth_service.reset_password(
+        email=data['email'],
+        code=data['code'],
+        new_password=data['new_password']
+    )
+    
+    if result['success']:
+        return jsonify({"message": result['message']})
+    else:
+        return jsonify({"error": result['error']}), 400
+
 @app.route('/expense', methods=['POST'])
+@token_required
 def add_expense():
     """
     Add a new expense.
@@ -104,6 +322,7 @@ def add_expense():
         return jsonify({"error": str(e)}), 400
 
 @app.route('/expense/<expense_id>', methods=['PUT'])
+@token_required
 def update_expense(expense_id):
     """
     Update an existing expense.
@@ -149,6 +368,7 @@ def update_expense(expense_id):
         return jsonify({"error": str(e)}), 400
 
 @app.route('/expense/<expense_id>', methods=['DELETE'])
+@token_required
 def delete_expense(expense_id):
     """Delete an expense by ID."""
     success = budget_tracker.delete_expense(expense_id)
@@ -159,6 +379,7 @@ def delete_expense(expense_id):
     return jsonify({"message": f"Expense with ID {expense_id} deleted successfully"})
 
 @app.route('/expense', methods=['GET'])
+@token_required
 def get_expenses():
     """
     Get all expenses, optionally filtered by date range.
@@ -204,6 +425,7 @@ def get_expenses():
     return jsonify({"expenses": expenses_dict})
 
 @app.route('/balance', methods=['GET'])
+@token_required
 def get_balance():
     """
     Get the current balance (total expenses).
@@ -240,6 +462,7 @@ def get_balance():
     })
 
 @app.route('/summary', methods=['GET'])
+@token_required
 def get_summary():
     """
     Get a summary of expenses by category.

@@ -1,0 +1,69 @@
+
+# Budget Tracker v2 Features
+
+## Prompt
+
+```
+Create a BDD specification for the Budget Tracker v2 features including user authentication, data persistence with DynamoDB, and data export functionality.
+```
+
+## Response
+
+```gherkin
+Feature: User Authentication
+  As a user
+  I want secure access to my expense tracker
+  So that my financial data remains confidential
+
+  Scenario: User signs up for a new account
+    Given I am on the signup page
+    When I enter my email "user@example.com"
+    And I create a password "SecurePass123"
+    And I confirm my password "SecurePass123"
+    And I click the "Sign Up" button
+    Then I should receive a verification email
+
+  Scenario: User logs in successfully
+    Given I have an existing account
+    When I enter my email "user@example.com"
+    And I enter my password "SecurePass123"
+    And I click the "Login" button
+    Then I should see the dashboard
+
+  Scenario: User fails login due to incorrect password
+    Given I have an existing account
+    When I enter my email "user@example.com"
+    And I enter an incorrect password "WrongPass"
+    And I click the "Login" button
+    Then I should see an error message "Invalid username or password"
+
+Feature: Data Persistence
+  As a user
+  I want my expense data stored persistently
+  So that my data is securely saved and retrievable anytime
+
+  Scenario: Expense data saved to DynamoDB
+    Given I am logged in and add a new expense
+    When I save the expense
+    Then the expense details should be stored in DynamoDB
+
+  Scenario: Retrieve stored expenses
+    Given I have previously saved expenses
+    When I log in and view my expense list
+    Then I should see all my previously stored expenses
+
+Feature: Data Export
+  As a user
+  I want to export my expenses
+  So that I can analyze them externally
+
+  Scenario: Export expenses to CSV
+    Given I am viewing my expense summary
+    When I click the "Export CSV" button
+    Then a CSV file containing my expenses should be downloaded
+
+  Scenario: Export expenses to PDF
+    Given I am viewing my expense summary
+    When I click the "Export PDF" button
+    Then a PDF file containing my expenses should be downloaded
+```
